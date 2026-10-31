@@ -37,15 +37,8 @@ async function initDB() {
         telefone VARCHAR(20),
         valor_devedor NUMERIC(10,2) NOT NULL,
         faixa_atraso VARCHAR(20) NOT NULL,
-        estagio VARCHAR(50) DEFAULT 'Novos Contatos'
-      );
-
-      CREATE TABLE IF NOT EXISTS cob_agenda (
-        id SERIAL PRIMARY KEY,
-        cliente_id INT REFERENCES cob_clientes(id) ON DELETE CASCADE,
-        titulo VARCHAR(150) NOT NULL,
-        data_agendamento TIMESTAMP NOT NULL,
-        concluido BOOLEAN DEFAULT FALSE
+        estagio VARCHAR(50) DEFAULT 'Novos Contatos',
+        operador_id INT REFERENCES usuarios(id) ON DELETE SET NULL
       );
 
       CREATE TABLE IF NOT EXISTS pos_planos (
@@ -61,7 +54,8 @@ async function initDB() {
         plano_id INT REFERENCES pos_planos(id) ON DELETE SET NULL,
         valor_mensal NUMERIC(10,2) NOT NULL,
         estagio VARCHAR(50) DEFAULT 'Venda Instalada',
-        satisfacao_nps INT DEFAULT 0
+        satisfacao_nps INT DEFAULT 0,
+        operador_id INT REFERENCES usuarios(id) ON DELETE SET NULL
       );
 
       CREATE TABLE IF NOT EXISTS pos_upgrades (
@@ -95,12 +89,11 @@ async function initDB() {
       );
     }
 
-    // Scripts Padrão Iniciais
     const scrRes = await pool.query("SELECT COUNT(*) FROM scripts");
     if (parseInt(scrRes.rows[0].count) === 0) {
       await pool.query(`
         INSERT INTO scripts (tipo, titulo, conteudo) VALUES
-        ('COBRANCA', 'Abordagem Inicial (30 Dias)', 'Olá [NOME], boa tarde! Identificamos uma pendência em aberto no valor de R$ [VALOR]. Podemos gerar o chave Pix para quitação hoje?'),
+        ('COBRANCA', 'Abordagem Inicial (30 Dias)', 'Olá [NOME], boa tarde! Identificamos uma pendência em aberto no valor de R$ [VALOR]. Podemos gerar a chave Pix para quitação hoje?'),
         ('COBRANCA', 'Notificação Urgente (60-90 Dias)', 'Prezado(a) [NOME], consta em nosso sistema notificação para cancelamento definitivo. Podemos negociar com desconto especial no valor de R$ [VALOR]?'),
         ('VENDAS', 'Oferta de Up-Grade de Banda', 'Olá [NOME]! Notamos seu excelente uso da nossa fibra. Temos uma oferta para dobrar sua velocidade de internet por apenas R$ 15 a mais no mês.')
       `);
@@ -137,28 +130,52 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// DASHBOARD - CORRIGIDO
+// DASHBOARD - CÁLCULOS COMPLETOS E RANKINGS
 app.get('/api/dashboard', authMiddleware, async (req, res) => {
   try {
-    const carteira = await pool.query('SELECT COUNT(*), COALESCE(SUM(valor_devedor), 0) as total FROM cob_clientes');
-    const acordosPagos = await pool.query("SELECT COUNT(*), COALESCE(SUM(valor_devedor), 0) as total FROM cob_clientes WHERE estagio = 'Acordo Pago (Gestão)'");
-    const vendasAtivas = await pool.query('SELECT COUNT(*) FROM pos_vendas_ativas');
-    const upgrades = await pool.query('SELECT COUNT(*) FROM pos_upgrades');
+    // Carteira Geral
+    const carteira = await pool.query('SELECT COUNT(*) as qtd, COALESCE(SUM(valor_devedor), 0) as total FROM cob_clientes');
+    
+    // Acordos Pagos
+    const acordosPagos = await pool.query("SELECT COUNT(*) as qtd, COALESCE(SUM(valor_devedor), 0) as total FROM cob_clientes WHERE estagio = 'Acordo Pago (Gestão)'");
+    
+    // Vendas Instaladas (Pós-Venda)
+    const vendasRealizadas = await pool.query("SELECT COUNT(*) as qtd, COALESCE(SUM(valor_mensal), 0) as total FROM pos_clientes WHERE estagio = 'Venda Instalada'");
+
+    // Ranking de Acordos Pagos por Usuário/Operador
+    const rankingAcordos = await pool.query(`
+      SELECT u.nome, COUNT(c.id) as qtd, COALESCE(SUM(c.valor_devedor), 0) as total 
+      FROM usuarios u 
+      LEFT JOIN cob_clientes c ON u.id = c.operador_id AND c.estagio = 'Acordo Pago (Gestão)'
+      GROUP BY u.id, u.nome ORDER BY total DESC
+    `);
+
+    // Ranking de Vendas por Usuário/Operador
+    const rankingVendas = await pool.query(`
+      SELECT u.nome, COUNT(p.id) as qtd, COALESCE(SUM(p.valor_mensal), 0) as total 
+      FROM usuarios u 
+      LEFT JOIN pos_clientes p ON u.id = p.operador_id AND p.estagio = 'Venda Instalada'
+      GROUP BY u.id, u.nome ORDER BY total DESC
+    `);
 
     res.json({
       indicadores: {
-        totalCarteira: carteira.rows[0],
-        totalAcordosPagos: acordosPagos.rows[0],
-        totalVendasAtivas: vendasAtivas.rows[0].count,
-        totalUpgrades: upgrades.rows[0].count
-      }
+        qtdClientesTotal: parseInt(carteira.rows[0].qtd),
+        valorTotalCarteira: parseFloat(carteira.rows[0].total),
+        qtdAcordosPagos: parseInt(acordosPagos.rows[0].qtd),
+        valorAcordosPagos: parseFloat(acordosPagos.rows[0].total),
+        qtdVendasRealizadas: parseInt(vendasRealizadas.rows[0].qtd),
+        valorVendasRealizadas: parseFloat(vendasRealizadas.rows[0].total)
+      },
+      rankingAcordos: rankingAcordos.rows,
+      rankingVendas: rankingVendas.rows
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// COBRANÇA - CLIENTES
+// COBRANÇA
 app.get('/api/cob/clientes', authMiddleware, async (req, res) => {
   const result = await pool.query('SELECT * FROM cob_clientes ORDER BY id DESC');
   res.json(result.rows);
@@ -168,8 +185,8 @@ app.post('/api/cob/clientes', authMiddleware, async (req, res) => {
   const { contrato, nome, telefone, valor_devedor, faixa_atraso } = req.body;
   try {
     await pool.query(
-      'INSERT INTO cob_clientes (contrato, nome, telefone, valor_devedor, faixa_atraso) VALUES ($1, $2, $3, $4, $5)',
-      [contrato, nome, telefone || '', valor_devedor || 0, faixa_atraso || '30 dias']
+      'INSERT INTO cob_clientes (contrato, nome, telefone, valor_devedor, faixa_atraso, operador_id) VALUES ($1, $2, $3, $4, $5, $6)',
+      [contrato, nome, telefone || '', valor_devedor || 0, faixa_atraso || '30 dias', req.user.id]
     );
     res.json({ success: true });
   } catch (err) {
@@ -198,13 +215,13 @@ app.delete('/api/cob/clientes/:id', authMiddleware, async (req, res) => {
 app.put('/api/cob/pipeline/mover', authMiddleware, async (req, res) => {
   const { id, novoEstagio } = req.body;
   if (novoEstagio === 'Acordo Pago (Gestão)' && !['SUPERVISOR', 'ADMIN'].includes(req.user.cargo)) {
-    return res.status(403).json({ error: 'Movimentação restrita a Supervisores/Admins.' });
+    return res.status(403).json({ error: 'Movimentação para Acordo Pago é restrita a Supervisores e Admins.' });
   }
-  await pool.query('UPDATE cob_clientes SET estagio = $1 WHERE id = $2', [novoEstagio, id]);
+  await pool.query('UPDATE cob_clientes SET estagio = $1, operador_id = $2 WHERE id = $3', [novoEstagio, req.user.id, id]);
   res.json({ success: true });
 });
 
-// PÓS VENDAS - CLIENTES E PLANOS
+// PÓS VENDAS
 app.get('/api/pos/clientes', authMiddleware, async (req, res) => {
   const result = await pool.query('SELECT * FROM pos_clientes ORDER BY id DESC');
   res.json(result.rows);
@@ -212,7 +229,7 @@ app.get('/api/pos/clientes', authMiddleware, async (req, res) => {
 
 app.post('/api/pos/clientes', authMiddleware, async (req, res) => {
   const { nome, telefone, valor_mensal } = req.body;
-  await pool.query('INSERT INTO pos_clientes (nome, telefone, valor_mensal) VALUES ($1, $2, $3)', [nome, telefone, valor_mensal]);
+  await pool.query('INSERT INTO pos_clientes (nome, telefone, valor_mensal, operador_id) VALUES ($1, $2, $3, $4)', [nome, telefone, valor_mensal, req.user.id]);
   res.json({ success: true });
 });
 
@@ -253,7 +270,7 @@ app.get('/api/pos/vendas-ativas', authMiddleware, async (req, res) => {
   res.json(result.rows);
 });
 
-// SCRIPTS MANUAL
+// SCRIPTS
 app.get('/api/scripts/:tipo', authMiddleware, async (req, res) => {
   const result = await pool.query('SELECT * FROM scripts WHERE tipo = $1 ORDER BY id DESC', [req.params.tipo]);
   res.json(result.rows);
@@ -270,7 +287,7 @@ app.delete('/api/scripts/:id', authMiddleware, async (req, res) => {
   res.json({ success: true });
 });
 
-// ADMIN & IMPORTADOR (3 Colunas: ID;Nome;Valor)
+// ADMIN & IMPORTADOR
 app.get('/api/admin/usuarios', authMiddleware, async (req, res) => {
   if (req.user.cargo !== 'ADMIN') return res.status(403).json({ error: 'Acesso Negado' });
   const result = await pool.query('SELECT id, nome, login, cargo FROM usuarios ORDER BY id DESC');
@@ -310,9 +327,9 @@ app.post('/api/admin/importar', authMiddleware, upload.single('arquivo'), async 
         const [contrato, nome, valor, telefone] = colunas;
         const valNum = parseFloat((valor || '0').replace(',', '.'));
         await pool.query(
-          `INSERT INTO cob_clientes (contrato, nome, valor_devedor, faixa_atraso, telefone) 
-           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (contrato) DO UPDATE SET valor_devedor = EXCLUDED.valor_devedor`,
-          [contrato, nome, valNum, faixa || '30 dias', telefone || '']
+          `INSERT INTO cob_clientes (contrato, nome, valor_devedor, faixa_atraso, telefone, operador_id) 
+           VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (contrato) DO UPDATE SET valor_devedor = EXCLUDED.valor_devedor`,
+          [contrato, nome, valNum, faixa || '30 dias', telefone || '', req.user.id]
         );
       } else if (tipo === 'upgrade') {
         const [cliente_id, nome, plano_atual] = colunas;
@@ -328,16 +345,5 @@ app.post('/api/admin/importar', authMiddleware, upload.single('arquivo'), async 
   }
 });
 
-app.post('/api/admin/limpar-acervo', authMiddleware, async (req, res) => {
-  if (req.user.cargo !== 'ADMIN') return res.status(403).json({ error: 'Acesso Negado' });
-  const { tabela } = req.body;
-  if (['cob_clientes', 'pos_upgrades', 'pos_vendas_ativas'].includes(tabela)) {
-    await pool.query(`TRUNCATE TABLE ${tabela} CASCADE`);
-    res.json({ success: true });
-  } else {
-    res.status(400).json({ error: 'Tabela inválida' });
-  }
-});
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 NEXUS COBR (Enterprise V2) rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 NEXUS COBR (Enterprise V3) rodando na porta ${PORT}`));
