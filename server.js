@@ -40,7 +40,6 @@ async function initDB() {
         estagio VARCHAR(50) DEFAULT 'Novos Contatos'
       );
 
-      -- Migration: adiciona operador_id caso a tabela ja existisse sem ela
       ALTER TABLE cob_clientes ADD COLUMN IF NOT EXISTS operador_id INT REFERENCES usuarios(id) ON DELETE SET NULL;
 
       CREATE TABLE IF NOT EXISTS pos_planos (
@@ -240,6 +239,13 @@ app.delete('/api/pos/clientes/:id', authMiddleware, async (req, res) => {
   res.json({ success: true });
 });
 
+// ROTA DRAG AND DROP PÓS-VENDAS
+app.put('/api/pos/pipeline/mover', authMiddleware, async (req, res) => {
+  const { id, novoEstagio } = req.body;
+  await pool.query('UPDATE pos_clientes SET estagio = $1, operador_id = $2 WHERE id = $3', [novoEstagio, req.user.id, id]);
+  res.json({ success: true });
+});
+
 app.get('/api/pos/planos', authMiddleware, async (req, res) => {
   const result = await pool.query('SELECT * FROM pos_planos ORDER BY valor ASC');
   res.json(result.rows);
@@ -283,7 +289,7 @@ app.delete('/api/scripts/:id', authMiddleware, async (req, res) => {
   res.json({ success: true });
 });
 
-// ADMIN & IMPORTADOR (Limpeza automatica de caracteres R$)
+// ADMIN & IMPORTADOR
 app.get('/api/admin/usuarios', authMiddleware, async (req, res) => {
   if (req.user.cargo !== 'ADMIN') return res.status(403).json({ error: 'Acesso Negado' });
   const result = await pool.query('SELECT id, nome, login, cargo FROM usuarios ORDER BY id DESC');
@@ -321,11 +327,8 @@ app.post('/api/admin/importar', authMiddleware, upload.single('arquivo'), async 
 
       if (tipo === 'cobranca') {
         const [contrato, nome, valor, telefone] = colunas;
-
-        // Ignora linha de cabecalho (ex: ID;NOME;VALOR)
         if (contrato.toUpperCase() === 'ID' || nome.toUpperCase() === 'NOME') continue;
 
-        // Limpa texto "R$", espacos e formata decimais
         const valTratado = (valor || '0').replace('R$', '').replace(/\s/g, '').replace(',', '.');
         const valNum = parseFloat(valTratado) || 0;
 
@@ -352,4 +355,4 @@ app.post('/api/admin/importar', authMiddleware, upload.single('arquivo'), async 
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 NEXUS COBR (Enterprise V3.1) rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 NEXUS COBR (Enterprise V3.2) rodando na porta ${PORT}`));

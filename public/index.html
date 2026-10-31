@@ -259,23 +259,8 @@
       } else if (screen === 'pos_pipeline') {
         document.getElementById('header-title').innerText = '📌 Pipeline Pós-Vendas';
         const clientes = await api('/api/pos/clientes');
-        const estagios = ['Venda Instalada', 'Acompanhamento 15 Dias', 'Acompanhamento 30 Dias', 'Satisfação do Cliente'];
-        
-        main.innerHTML = `<div class="kanban-board">
-          ${estagios.map(est => `
-            <div class="kanban-col">
-              <h4>${est}</h4>
-              <div class="kanban-cards">
-                ${clientes.filter(c => c.estagio === est).map(c => `
-                  <div class="kanban-card">
-                    <h5>${c.nome}</h5>
-                    <p>Mensalidade: R$ ${parseFloat(c.valor_mensal).toFixed(2)}</p>
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-          `).join('')}
-        </div>`;
+        window.allPosClientes = clientes;
+        renderPipelinePos();
       } else if (screen === 'pos_cadastro') {
         document.getElementById('header-title').innerText = '👥 Clientes Pós-Venda (Ativos)';
         renderCadastroPos();
@@ -424,7 +409,7 @@
       });
     }
 
-    // PIPELINE & DRAG AND DROP
+    // PIPELINE & DRAG AND DROP - COBRANÇA
     function renderPipelineCob() {
       const query = (document.getElementById('cob-search')?.value || '').toLowerCase();
       const clientes = window.allCobClientes.filter(c => c.nome.toLowerCase().includes(query) || c.contrato.toLowerCase().includes(query));
@@ -451,6 +436,34 @@
       `).join('');
     }
 
+    // PIPELINE & DRAG AND DROP - PÓS-VENDAS
+    function renderPipelinePos() {
+      const clientes = window.allPosClientes || [];
+      const estagios = ['Venda Instalada', 'Acompanhamento 15 Dias', 'Acompanhamento 30 Dias', 'Satisfação do Cliente'];
+
+      document.getElementById('main-content').innerHTML = `
+        <div class="kanban-board">
+          ${estagios.map(est => `
+            <div class="kanban-col" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" ondrop="dropPos(event, '${est}')">
+              <h4>${est}</h4>
+              <div class="kanban-cards">
+                ${clientes.filter(c => c.estagio === est).map(c => `
+                  <div class="kanban-card" draggable="true" ondragstart="dragStart(event, ${c.id})">
+                    <div style="display:flex; justify-content:space-between; align-items:start;">
+                      <h5>${c.nome}</h5>
+                      <button onclick="excluirClientePos(${c.id})" class="btn-sm btn-danger" style="padding:2px 5px;">✕</button>
+                    </div>
+                    <p>Mensalidade: R$ ${parseFloat(c.valor_mensal).toFixed(2)}</p>
+                    ${c.telefone ? `<a href="sip:${c.telefone}" class="microsip-btn">📞 Call</a>` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
     function dragStart(e, id) { e.dataTransfer.setData('text/plain', id); }
     function allowDrop(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
     function dragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
@@ -464,6 +477,17 @@
       const clientes = await api('/api/cob/clientes');
       window.allCobClientes = clientes;
       renderPipelineCob();
+    }
+
+    async function dropPos(e, novoEstagio) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      const res = await api('/api/pos/pipeline/mover', 'PUT', { id, novoEstagio });
+      if (res.error) return alert(res.error);
+      const clientes = await api('/api/pos/clientes');
+      window.allPosClientes = clientes;
+      renderPipelinePos();
     }
 
     // CADASTRO COBRANÇA
@@ -603,7 +627,13 @@
     async function excluirClientePos(id) {
       if (confirm('Deletar este cliente do Pós-Venda?')) {
         await api(`/api/pos/clientes/${id}`, 'DELETE');
-        renderCadastroPos();
+        if (window.allPosClientes) {
+          const clientes = await api('/api/pos/clientes');
+          window.allPosClientes = clientes;
+          renderPipelinePos();
+        } else {
+          renderCadastroPos();
+        }
       }
     }
 
