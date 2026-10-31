@@ -37,9 +37,11 @@ async function initDB() {
         telefone VARCHAR(20),
         valor_devedor NUMERIC(10,2) NOT NULL,
         faixa_atraso VARCHAR(20) NOT NULL,
-        estagio VARCHAR(50) DEFAULT 'Novos Contatos',
-        operador_id INT REFERENCES usuarios(id) ON DELETE SET NULL
+        estagio VARCHAR(50) DEFAULT 'Novos Contatos'
       );
+
+      -- Migration: adiciona operador_id caso a tabela ja existisse sem ela
+      ALTER TABLE cob_clientes ADD COLUMN IF NOT EXISTS operador_id INT REFERENCES usuarios(id) ON DELETE SET NULL;
 
       CREATE TABLE IF NOT EXISTS pos_planos (
         id SERIAL PRIMARY KEY,
@@ -54,9 +56,10 @@ async function initDB() {
         plano_id INT REFERENCES pos_planos(id) ON DELETE SET NULL,
         valor_mensal NUMERIC(10,2) NOT NULL,
         estagio VARCHAR(50) DEFAULT 'Venda Instalada',
-        satisfacao_nps INT DEFAULT 0,
-        operador_id INT REFERENCES usuarios(id) ON DELETE SET NULL
+        satisfacao_nps INT DEFAULT 0
       );
+
+      ALTER TABLE pos_clientes ADD COLUMN IF NOT EXISTS operador_id INT REFERENCES usuarios(id) ON DELETE SET NULL;
 
       CREATE TABLE IF NOT EXISTS pos_upgrades (
         id SERIAL PRIMARY KEY,
@@ -130,19 +133,13 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// DASHBOARD - CÁLCULOS COMPLETOS E RANKINGS
+// DASHBOARD
 app.get('/api/dashboard', authMiddleware, async (req, res) => {
   try {
-    // Carteira Geral
     const carteira = await pool.query('SELECT COUNT(*) as qtd, COALESCE(SUM(valor_devedor), 0) as total FROM cob_clientes');
-    
-    // Acordos Pagos
     const acordosPagos = await pool.query("SELECT COUNT(*) as qtd, COALESCE(SUM(valor_devedor), 0) as total FROM cob_clientes WHERE estagio = 'Acordo Pago (Gestão)'");
-    
-    // Vendas Instaladas (Pós-Venda)
     const vendasRealizadas = await pool.query("SELECT COUNT(*) as qtd, COALESCE(SUM(valor_mensal), 0) as total FROM pos_clientes WHERE estagio = 'Venda Instalada'");
 
-    // Ranking de Acordos Pagos por Usuário/Operador
     const rankingAcordos = await pool.query(`
       SELECT u.nome, COUNT(c.id) as qtd, COALESCE(SUM(c.valor_devedor), 0) as total 
       FROM usuarios u 
@@ -150,7 +147,6 @@ app.get('/api/dashboard', authMiddleware, async (req, res) => {
       GROUP BY u.id, u.nome ORDER BY total DESC
     `);
 
-    // Ranking de Vendas por Usuário/Operador
     const rankingVendas = await pool.query(`
       SELECT u.nome, COUNT(p.id) as qtd, COALESCE(SUM(p.valor_mensal), 0) as total 
       FROM usuarios u 
@@ -287,7 +283,7 @@ app.delete('/api/scripts/:id', authMiddleware, async (req, res) => {
   res.json({ success: true });
 });
 
-// ADMIN & IMPORTADOR
+// ADMIN & IMPORTADOR (Limpeza automatica de caracteres R$)
 app.get('/api/admin/usuarios', authMiddleware, async (req, res) => {
   if (req.user.cargo !== 'ADMIN') return res.status(403).json({ error: 'Acesso Negado' });
   const result = await pool.query('SELECT id, nome, login, cargo FROM usuarios ORDER BY id DESC');
@@ -325,17 +321,27 @@ app.post('/api/admin/importar', authMiddleware, upload.single('arquivo'), async 
 
       if (tipo === 'cobranca') {
         const [contrato, nome, valor, telefone] = colunas;
-        const valNum = parseFloat((valor || '0').replace(',', '.'));
+
+        // Ignora linha de cabecalho (ex: ID;NOME;VALOR)
+        if (contrato.toUpperCase() === 'ID' || nome.toUpperCase() === 'NOME') continue;
+
+        // Limpa texto "R$", espacos e formata decimais
+        const valTratado = (valor || '0').replace('R$', '').replace(/\s/g, '').replace(',', '.');
+        const valNum = parseFloat(valTratado) || 0;
+
         await pool.query(
           `INSERT INTO cob_clientes (contrato, nome, valor_devedor, faixa_atraso, telefone, operador_id) 
-           VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (contrato) DO UPDATE SET valor_devedor = EXCLUDED.valor_devedor`,
+           VALUES ($1, $2, $3, $4, $5, $6) 
+           ON CONFLICT (contrato) DO UPDATE SET valor_devedor = EXCLUDED.valor_devedor`,
           [contrato, nome, valNum, faixa || '30 dias', telefone || '', req.user.id]
         );
       } else if (tipo === 'upgrade') {
         const [cliente_id, nome, plano_atual] = colunas;
+        if (cliente_id.toUpperCase() === 'ID') continue;
         await pool.query('INSERT INTO pos_upgrades (cliente_id, nome, plano_atual) VALUES ($1, $2, $3)', [cliente_id, nome, plano_atual || 'Padrão']);
       } else if (tipo === 'vendas_ativas') {
         const [cliente_id, nome, telefone] = colunas;
+        if (cliente_id.toUpperCase() === 'ID') continue;
         await pool.query('INSERT INTO pos_vendas_ativas (cliente_id, nome, telefone) VALUES ($1, $2, $3)', [cliente_id, nome, telefone || '']);
       }
     }
@@ -346,4 +352,4 @@ app.post('/api/admin/importar', authMiddleware, upload.single('arquivo'), async 
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 NEXUS COBR (Enterprise V3) rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 NEXUS COBR (Enterprise V3.1) rodando na porta ${PORT}`));
