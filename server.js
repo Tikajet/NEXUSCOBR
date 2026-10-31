@@ -41,6 +41,7 @@ async function initDB() {
       );
 
       ALTER TABLE cob_clientes ADD COLUMN IF NOT EXISTS operador_id INT REFERENCES usuarios(id) ON DELETE SET NULL;
+      ALTER TABLE cob_clientes ADD COLUMN IF NOT EXISTS valor_acordo NUMERIC(10,2);
 
       CREATE TABLE IF NOT EXISTS pos_planos (
         id SERIAL PRIMARY KEY,
@@ -136,11 +137,11 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/dashboard', authMiddleware, async (req, res) => {
   try {
     const carteira = await pool.query('SELECT COUNT(*) as qtd, COALESCE(SUM(valor_devedor), 0) as total FROM cob_clientes');
-    const acordosPagos = await pool.query("SELECT COUNT(*) as qtd, COALESCE(SUM(valor_devedor), 0) as total FROM cob_clientes WHERE estagio = 'Acordo Pago (Gestão)'");
+    const acordosPagos = await pool.query("SELECT COUNT(*) as qtd, COALESCE(SUM(COALESCE(valor_acordo, valor_devedor)), 0) as total FROM cob_clientes WHERE estagio = 'Acordo Pago (Gestão)'");
     const vendasRealizadas = await pool.query("SELECT COUNT(*) as qtd, COALESCE(SUM(valor_mensal), 0) as total FROM pos_clientes WHERE estagio = 'Venda Instalada'");
 
     const rankingAcordos = await pool.query(`
-      SELECT u.nome, COUNT(c.id) as qtd, COALESCE(SUM(c.valor_devedor), 0) as total 
+      SELECT u.nome, COUNT(c.id) as qtd, COALESCE(SUM(COALESCE(c.valor_acordo, c.valor_devedor)), 0) as total 
       FROM usuarios u 
       LEFT JOIN cob_clientes c ON u.id = c.operador_id AND c.estagio = 'Acordo Pago (Gestão)'
       GROUP BY u.id, u.nome ORDER BY total DESC
@@ -172,7 +173,12 @@ app.get('/api/dashboard', authMiddleware, async (req, res) => {
 
 // COBRANÇA
 app.get('/api/cob/clientes', authMiddleware, async (req, res) => {
-  const result = await pool.query('SELECT * FROM cob_clientes ORDER BY id DESC');
+  const result = await pool.query(`
+    SELECT c.*, u.nome as operador_nome 
+    FROM cob_clientes c 
+    LEFT JOIN usuarios u ON c.operador_id = u.id 
+    ORDER BY c.id DESC
+  `);
   res.json(result.rows);
 });
 
@@ -208,17 +214,27 @@ app.delete('/api/cob/clientes/:id', authMiddleware, async (req, res) => {
 });
 
 app.put('/api/cob/pipeline/mover', authMiddleware, async (req, res) => {
-  const { id, novoEstagio } = req.body;
+  const { id, novoEstagio, valorAcordo } = req.body;
   if (novoEstagio === 'Acordo Pago (Gestão)' && !['SUPERVISOR', 'ADMIN'].includes(req.user.cargo)) {
     return res.status(403).json({ error: 'Movimentação para Acordo Pago é restrita a Supervisores e Admins.' });
   }
-  await pool.query('UPDATE cob_clientes SET estagio = $1, operador_id = $2 WHERE id = $3', [novoEstagio, req.user.id, id]);
+  
+  if (valorAcordo !== undefined && valorAcordo !== null) {
+    await pool.query('UPDATE cob_clientes SET estagio = $1, operador_id = $2, valor_acordo = $3 WHERE id = $4', [novoEstagio, req.user.id, valorAcordo, id]);
+  } else {
+    await pool.query('UPDATE cob_clientes SET estagio = $1, operador_id = $2 WHERE id = $3', [novoEstagio, req.user.id, id]);
+  }
   res.json({ success: true });
 });
 
 // PÓS VENDAS
 app.get('/api/pos/clientes', authMiddleware, async (req, res) => {
-  const result = await pool.query('SELECT * FROM pos_clientes ORDER BY id DESC');
+  const result = await pool.query(`
+    SELECT p.*, u.nome as operador_nome 
+    FROM pos_clientes p 
+    LEFT JOIN usuarios u ON p.operador_id = u.id 
+    ORDER BY p.id DESC
+  `);
   res.json(result.rows);
 });
 
@@ -239,7 +255,6 @@ app.delete('/api/pos/clientes/:id', authMiddleware, async (req, res) => {
   res.json({ success: true });
 });
 
-// ROTA DRAG AND DROP PÓS-VENDAS
 app.put('/api/pos/pipeline/mover', authMiddleware, async (req, res) => {
   const { id, novoEstagio } = req.body;
   await pool.query('UPDATE pos_clientes SET estagio = $1, operador_id = $2 WHERE id = $3', [novoEstagio, req.user.id, id]);
@@ -355,4 +370,4 @@ app.post('/api/admin/importar', authMiddleware, upload.single('arquivo'), async 
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 NEXUS COBR (Enterprise V3.2) rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 NEXUS COBR (Enterprise Platinum) rodando na porta ${PORT}`));

@@ -3,29 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NEXUS COBR - Metronet Enterprise</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <title>NEXUS - MetroNet Enterprise</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     :root {
-      --bg-main: #090d16;
-      --panel-bg: #111827;
-      --card-bg: #1e293b;
+      --bg-main: #060911;
+      --panel-bg: #0d1322;
+      --card-bg: #151d30;
       --accent-indigo: #6366f1;
       --accent-cyan: #06b6d4;
       --accent-green: #10b981;
       --accent-red: #ef4444;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
-      --border-color: #334155;
-      --table-header: #151e32;
-      --neon-glow: 0 0 12px rgba(6, 182, 212, 0.3);
+      --border-color: #1e293b;
+      --table-header: #0f172a;
+      --neon-glow: 0 0 15px rgba(6, 182, 212, 0.25);
     }
 
     [data-theme="light"] {
-      --bg-main: #f1f5f9;
+      --bg-main: #f8fafc;
       --panel-bg: #ffffff;
-      --card-bg: #f8fafc;
+      --card-bg: #f1f5f9;
       --accent-indigo: #4f46e5;
       --accent-cyan: #0891b2;
       --accent-green: #059669;
@@ -37,16 +37,25 @@
       --neon-glow: none;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-    body { background-color: var(--bg-main); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; transition: background-color 0.3s, color 0.3s; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+    body { background-color: var(--bg-main); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; transition: 0.3s; }
 
+    /* MODAL VERSÍCULO */
+    #bible-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 2000; backdrop-filter: blur(5px); }
+    .bible-card { background: var(--panel-bg); border: 1px solid var(--accent-cyan); padding: 32px; border-radius: 16px; max-width: 480px; text-align: center; box-shadow: var(--neon-glow); }
+    .bible-card h3 { color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace; margin-bottom: 15px; }
+    .bible-card p { font-size: 1.05rem; font-style: italic; color: var(--text-main); line-height: 1.6; }
+    .bible-card span { display: block; margin-top: 15px; font-weight: 700; color: var(--accent-indigo); }
+
+    /* LOGIN */
     #login-screen { position: fixed; inset: 0; background: var(--bg-main); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-    .login-card { background: var(--panel-bg); border: 1px solid var(--accent-cyan); padding: 40px; border-radius: 12px; width: 380px; box-shadow: var(--neon-glow); text-align: center; }
-    .login-card h2 { color: var(--accent-cyan); margin-bottom: 20px; font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; }
+    .login-card { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 48px; border-radius: 16px; width: 400px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); text-align: center; }
+    .brand-title { font-family: 'JetBrains Mono', monospace; font-size: 2.2rem; font-weight: 800; color: var(--accent-cyan); letter-spacing: -1px; }
+    .brand-sub { font-size: 0.9rem; font-weight: 600; color: var(--accent-indigo); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 24px; }
     
-    input, select, button, textarea { width: 100%; padding: 10px 14px; margin-top: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); outline: none; font-size: 0.9rem; }
+    input, select, button, textarea { width: 100%; padding: 12px 16px; margin-top: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main); outline: none; font-size: 0.9rem; }
     input:focus, select:focus, textarea:focus { border-color: var(--accent-cyan); }
-    button { background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan)); border: none; font-weight: 600; cursor: pointer; transition: 0.2s ease; color: #fff; }
+    button { background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan)); border: none; font-weight: 700; cursor: pointer; transition: 0.2s ease; color: #fff; }
     button:hover { opacity: 0.9; transform: translateY(-1px); }
     .btn-danger { background: var(--accent-red) !important; }
     .btn-sm { width: auto; padding: 4px 10px; font-size: 0.78rem; }
@@ -54,61 +63,78 @@
 
     #app { display: none; width: 100%; height: 100%; flex-direction: row; }
     aside { width: 260px; background: var(--panel-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
-    .brand { padding: 20px; font-size: 1.25rem; font-weight: 700; color: var(--accent-cyan); border-bottom: 1px solid var(--border-color); font-family: 'JetBrains Mono', monospace; }
+    .sidebar-header { padding: 24px 20px; border-bottom: 1px solid var(--border-color); }
     
-    nav { flex: 1; padding: 12px; overflow-y: auto; }
-    .menu-section { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin: 16px 8px 6px; font-weight: 700; letter-spacing: 0.5px; }
-    .nav-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; color: var(--text-muted); display: block; margin-bottom: 3px; font-size: 0.88rem; transition: 0.2s; text-decoration: none; }
-    .nav-item:hover, .nav-item.active { background: var(--card-bg); color: var(--accent-cyan); border-left: 3px solid var(--accent-cyan); font-weight: 500; }
+    nav { flex: 1; padding: 16px; overflow-y: auto; }
+    .menu-section { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin: 20px 8px 8px; font-weight: 800; letter-spacing: 1px; }
+    .nav-item { padding: 12px 14px; border-radius: 8px; cursor: pointer; color: var(--text-muted); display: block; margin-bottom: 4px; font-size: 0.9rem; transition: 0.2s; text-decoration: none; font-weight: 500; }
+    .nav-item:hover, .nav-item.active { background: var(--card-bg); color: var(--accent-cyan); border-left: 4px solid var(--accent-cyan); font-weight: 600; }
 
     main { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-main); }
-    header { height: 60px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
-    .content { flex: 1; padding: 24px; overflow-y: auto; }
+    header { height: 65px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; }
+    .content { flex: 1; padding: 28px; overflow-y: auto; display: flex; flex-direction: column; }
 
-    /* Kanban Drag & Drop */
-    .kanban-board { display: flex; gap: 16px; overflow-x: auto; height: 100%; padding-bottom: 12px; }
-    .kanban-col { min-width: 280px; max-width: 280px; background: var(--panel-bg); border-radius: 8px; border: 1px solid var(--border-color); display: flex; flex-direction: column; }
-    .kanban-col h4 { padding: 12px 14px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; color: var(--accent-cyan); text-transform: uppercase; font-weight: 700; }
-    .kanban-cards { padding: 10px; flex: 1; overflow-y: auto; min-height: 150px; }
-    .kanban-cards.drag-over { background: rgba(6, 182, 212, 0.08); border-radius: 6px; }
-    .kanban-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; margin-bottom: 10px; cursor: grab; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    /* FOOTER */
+    footer { height: 40px; background: var(--panel-bg); border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; font-size: 0.78rem; color: var(--text-muted); }
+    footer span.dev { font-weight: 700; color: var(--accent-cyan); font-family: 'JetBrains Mono', monospace; }
+
+    /* KANBAN DRAG & DROP */
+    .kanban-board { display: flex; gap: 18px; overflow-x: auto; flex: 1; padding-bottom: 12px; }
+    .kanban-col { min-width: 290px; max-width: 290px; background: var(--panel-bg); border-radius: 12px; border: 1px solid var(--border-color); display: flex; flex-direction: column; }
+    .kanban-col h4 { padding: 14px 16px; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; color: var(--accent-cyan); text-transform: uppercase; font-weight: 800; letter-spacing: 0.5px; }
+    .kanban-cards { padding: 12px; flex: 1; overflow-y: auto; min-height: 150px; }
+    .kanban-cards.drag-over { background: rgba(6, 182, 212, 0.06); border-radius: 8px; }
+    .kanban-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 12px; cursor: grab; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .kanban-card:active { cursor: grabbing; }
-    .kanban-card h5 { color: var(--text-main); font-size: 0.95rem; margin-bottom: 4px; }
-    .kanban-card p { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 3px; }
-    .microsip-btn { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-indigo); color: #fff; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.75rem; font-weight: 600; margin-top: 6px; }
+    .kanban-card h5 { color: var(--text-main); font-size: 0.98rem; margin-bottom: 4px; font-weight: 700; }
+    .kanban-card p { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 4px; }
+    .op-tag { display: inline-block; font-size: 0.7rem; font-weight: 700; color: var(--accent-indigo); background: rgba(99, 102, 241, 0.15); padding: 2px 6px; border-radius: 4px; margin-top: 4px; }
 
-    /* Dashboard Layout */
-    .grid-dash { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
-    .dash-card { background: var(--panel-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
-    .dash-card h3 { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-    .dash-card .val { font-size: 1.5rem; font-weight: 700; color: var(--accent-cyan); margin-top: 6px; font-family: 'JetBrains Mono', monospace; }
+    /* DASHBOARD LAYOUT */
+    .grid-dash { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 28px; }
+    .dash-card { background: var(--panel-bg); padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); }
+    .dash-card h3 { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+    .dash-card .val { font-size: 1.75rem; font-weight: 800; color: var(--accent-cyan); margin-top: 8px; font-family: 'JetBrains Mono', monospace; }
 
-    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
-    .chart-box { background: var(--panel-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
+    .chart-box { background: var(--panel-bg); padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); }
 
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; background: var(--panel-bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
-    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 0.88rem; }
-    th { background: var(--table-header); color: var(--accent-cyan); font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; background: var(--panel-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color); }
+    th, td { padding: 14px 18px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; }
+    th { background: var(--table-header); color: var(--accent-cyan); font-weight: 700; text-transform: uppercase; font-size: 0.78rem; letter-spacing: 0.5px; }
   </style>
 </head>
 <body>
 
+  <!-- POPUP BÍBLICO DE INÍCIO -->
+  <div id="bible-modal">
+    <div class="bible-card">
+      <h3>⚡ NEXUS ENTERPRISE</h3>
+      <p id="bible-text"></p>
+      <span id="bible-ref"></span>
+      <button onclick="closeBibleModal()" style="margin-top:20px;">INICIAR SESSÃO</button>
+    </div>
+  </div>
+
   <!-- LOGIN -->
   <div id="login-screen">
     <div class="login-card">
-      <h2>NEXUS COBR</h2>
-      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 20px;">Metronet Enterprise B2C</p>
+      <div class="brand-title">NEXUS</div>
+      <div class="brand-sub">MetroNet</div>
       <input type="text" id="login-user" placeholder="Login / Usuário">
       <input type="password" id="login-pass" placeholder="Senha">
-      <button onclick="login()" style="margin-top:15px;">ACESSAR PLATAFORMA</button>
-      <p id="login-err" style="color: var(--accent-red); font-size: 0.8rem; margin-top: 10px;"></p>
+      <button onclick="login()" style="margin-top:20px; padding: 14px;">ACESSAR PLATAFORMA</button>
+      <p id="login-err" style="color: var(--accent-red); font-size: 0.8rem; margin-top: 12px;"></p>
     </div>
   </div>
 
   <!-- MAIN APP -->
   <div id="app">
     <aside>
-      <div class="brand">⚡ NEXUS COBR</div>
+      <div class="sidebar-header">
+        <div class="brand-title" style="font-size:1.6rem;">NEXUS</div>
+        <div class="brand-sub" style="font-size:0.75rem; margin-bottom:0;">MetroNet</div>
+      </div>
       <nav>
         <div class="menu-section">Geral</div>
         <a class="nav-item active" onclick="navigate('dash')">📊 Dashboard / Ranking</a>
@@ -134,19 +160,32 @@
 
     <main>
       <header>
-        <div id="header-title" style="font-weight: 700; color: var(--accent-cyan); font-size: 1.1rem;">Dashboard</div>
-        <div style="font-size: 0.85rem; display: flex; align-items: center; gap: 15px;">
+        <div id="header-title" style="font-weight: 800; color: var(--accent-cyan); font-size: 1.15rem;">Dashboard</div>
+        <div style="font-size: 0.85rem; display: flex; align-items: center; gap: 16px;">
           <button onclick="toggleTheme()" class="theme-toggle" id="theme-btn">☀️ Tema Claro</button>
-          <span id="user-display"></span>
+          <span id="user-display" style="font-weight: 600;"></span>
           <button onclick="logout()" class="btn-sm btn-danger">Sair</button>
         </div>
       </header>
 
       <div class="content" id="main-content"></div>
+
+      <footer>
+        <span id="footer-verse">"Tudo posso naquele que me fortalece." — Filipenses 4:13</span>
+        <span>Developer: <span class="dev">Jet System</span></span>
+      </footer>
     </main>
   </div>
 
   <script>
+    const versiculos = [
+      { text: '"Tudo posso naquele que me fortalece."', ref: 'Filipenses 4:13' },
+      { text: '"O Senhor é o meu pastor; nada me faltará."', ref: 'Salmos 23:1' },
+      { text: '"Entrega o teu caminho ao Senhor; confia nele, e ele o fará."', ref: 'Salmos 37:5' },
+      { text: '"Se Deus é por nós, quem será contra nós?"', ref: 'Romanos 8:31' },
+      { text: '"Porque para Deus nada é impossível."', ref: 'Lucas 1:37' }
+    ];
+
     let token = localStorage.getItem('nexus_token');
     let user = JSON.parse(localStorage.getItem('nexus_user') || '{}');
     let currentTheme = localStorage.getItem('nexus_theme') || 'dark';
@@ -179,10 +218,22 @@
         user = data.user;
         localStorage.setItem('nexus_token', token);
         localStorage.setItem('nexus_user', JSON.stringify(user));
-        showApp();
+        showBibleModal();
       } else {
         document.getElementById('login-err').innerText = data.error;
       }
+    }
+
+    function showBibleModal() {
+      const random = versiculos[Math.floor(Math.random() * versiculos.length)];
+      document.getElementById('bible-text').innerText = random.text;
+      document.getElementById('bible-ref').innerText = random.ref;
+      document.getElementById('bible-modal').style.display = 'flex';
+    }
+
+    function closeBibleModal() {
+      document.getElementById('bible-modal').style.display = 'none';
+      showApp();
     }
 
     function logout() {
@@ -195,6 +246,11 @@
       document.getElementById('app').style.display = 'flex';
       document.getElementById('user-display').innerText = `${user.nome} (${user.cargo})`;
       document.getElementById('theme-btn').innerText = currentTheme === 'dark' ? '☀️ Tema Claro' : '🌙 Tema Escuro';
+
+      // Atualiza versículo aleatório no rodapé
+      const randomFooter = versiculos[Math.floor(Math.random() * versiculos.length)];
+      document.getElementById('footer-verse').innerText = `${randomFooter.text} — ${randomFooter.ref}`;
+
       if (user.cargo === 'COBRADOR') {
         document.getElementById('menu-admin-user').style.display = 'none';
         document.getElementById('menu-admin-import').style.display = 'none';
@@ -246,7 +302,7 @@
         document.getElementById('header-title').innerText = '📌 Pipeline de Cobrança';
         const clientes = await api('/api/cob/clientes');
         main.innerHTML = `
-          <div style="margin-bottom:15px;">
+          <div style="margin-bottom:18px;">
             <input type="text" id="cob-search" placeholder="🔍 Buscar por nome do cliente ou contrato..." onkeyup="renderPipelineCob()" style="max-width:380px;">
           </div>
           <div class="kanban-board" id="kanban-container"></div>
@@ -268,7 +324,7 @@
         document.getElementById('header-title').innerText = '📦 Cadastro de Planos de Internet';
         const planos = await api('/api/pos/planos');
         main.innerHTML = `
-          <div style="max-width:400px; background:var(--panel-bg); padding:20px; border-radius:8px; border:1px solid var(--border-color); margin-bottom:20px;">
+          <div style="max-width:400px; background:var(--panel-bg); padding:24px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:20px;">
             <h3>Novo Plano</h3>
             <input id="p_nome" placeholder="Nome do Plano (Ex: Fibra 500 Mega)">
             <input id="p_valor" type="number" step="0.01" placeholder="Valor Mensal (R$)">
@@ -309,19 +365,19 @@
         document.getElementById('header-title').innerText = `📄 Scripts Padronizados (${tipo})`;
         const scripts = await api(`/api/scripts/${tipo}`);
         main.innerHTML = `
-          <div style="max-width:500px; background:var(--panel-bg); padding:20px; border-radius:8px; border:1px solid var(--border-color); margin-bottom:20px;">
+          <div style="max-width:500px; background:var(--panel-bg); padding:24px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:20px;">
             <h3>Cadastrar Novo Script</h3>
             <input id="scr_titulo" placeholder="Título do Script">
             <textarea id="scr_conteudo" rows="4" placeholder="Texto da abordagem..." style="margin-top:10px;"></textarea>
             <button onclick="salvarScript('${tipo}')" style="margin-top:15px;">Salvar Script</button>
           </div>
           ${scripts.map(s => `
-            <div style="background:var(--panel-bg); padding:16px; border-radius:8px; border:1px solid var(--border-color); margin-bottom:12px;">
+            <div style="background:var(--panel-bg); padding:20px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:14px;">
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h4 style="color:var(--accent-cyan);">${s.titulo}</h4>
                 <button onclick="excluirScript(${s.id}, '${screen}')" class="btn-sm btn-danger">Excluir</button>
               </div>
-              <p style="margin-top:8px; color:var(--text-muted); font-size:0.9rem; white-space:pre-wrap;">${s.conteudo}</p>
+              <p style="margin-top:10px; color:var(--text-muted); font-size:0.9rem; white-space:pre-wrap;">${s.conteudo}</p>
             </div>
           `).join('')}
         `;
@@ -329,7 +385,7 @@
         document.getElementById('header-title').innerText = '👤 Gestão de Usuários';
         const users = await api('/api/admin/usuarios');
         main.innerHTML = `
-          <div style="max-width:400px; background:var(--panel-bg); padding:20px; border-radius:8px; border:1px solid var(--border-color); margin-bottom:20px;">
+          <div style="max-width:400px; background:var(--panel-bg); padding:24px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:20px;">
             <h3>Criar Usuário</h3>
             <input id="u_nome" placeholder="Nome Completo">
             <input id="u_login" placeholder="Login">
@@ -353,7 +409,7 @@
       } else if (screen === 'admin_listas') {
         document.getElementById('header-title').innerText = '📥 Importador de Listas (3 Colunas)';
         main.innerHTML = `
-          <div style="max-width:500px; background:var(--panel-bg); padding:20px; border-radius:8px; border:1px solid var(--border-color); margin-bottom:20px;">
+          <div style="max-width:500px; background:var(--panel-bg); padding:24px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:20px;">
             <h3>Importação CSV / TXT</h3>
             <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Formato das 3 colunas: <code>ID;Nome do Cliente;Valor Devedor</code></p>
             <select id="imp_tipo" style="margin-top:15px;">
@@ -409,7 +465,7 @@
       });
     }
 
-    // PIPELINE & DRAG AND DROP - COBRANÇA
+    // PIPELINE COBRANÇA (EXIBE OPERADOR E MANIPULA VALOR DO ACORDO)
     function renderPipelineCob() {
       const query = (document.getElementById('cob-search')?.value || '').toLowerCase();
       const clientes = window.allCobClientes.filter(c => c.nome.toLowerCase().includes(query) || c.contrato.toLowerCase().includes(query));
@@ -426,9 +482,12 @@
                   <button onclick="excluirClienteCob(${c.id})" class="btn-sm btn-danger" style="padding:2px 5px;">✕</button>
                 </div>
                 <p>Contrato: ${c.contrato}</p>
-                <p style="color:var(--accent-cyan); font-weight:bold;">R$ ${parseFloat(c.valor_devedor).toFixed(2)}</p>
+                <p style="color:var(--accent-cyan); font-weight:bold;">
+                  ${c.valor_acordo ? `Acordo: R$ ${parseFloat(c.valor_acordo).toFixed(2)} (Dev: R$ ${parseFloat(c.valor_devedor).toFixed(2)})` : `Débito: R$ ${parseFloat(c.valor_devedor).toFixed(2)}`}
+                </p>
                 <p>Atraso: ${c.faixa_atraso}</p>
-                ${c.telefone ? `<a href="sip:${c.telefone}" class="microsip-btn">📞 MicroSIP</a>` : ''}
+                ${c.operador_nome ? `<span class="op-tag">👤 ${c.operador_nome}</span>` : ''}
+                ${c.telefone ? `<br><a href="sip:${c.telefone}" class="microsip-btn">📞 MicroSIP</a>` : ''}
               </div>
             `).join('')}
           </div>
@@ -436,7 +495,7 @@
       `).join('');
     }
 
-    // PIPELINE & DRAG AND DROP - PÓS-VENDAS
+    // PIPELINE PÓS-VENDAS
     function renderPipelinePos() {
       const clientes = window.allPosClientes || [];
       const estagios = ['Venda Instalada', 'Acompanhamento 15 Dias', 'Acompanhamento 30 Dias', 'Satisfação do Cliente'];
@@ -454,7 +513,8 @@
                       <button onclick="excluirClientePos(${c.id})" class="btn-sm btn-danger" style="padding:2px 5px;">✕</button>
                     </div>
                     <p>Mensalidade: R$ ${parseFloat(c.valor_mensal).toFixed(2)}</p>
-                    ${c.telefone ? `<a href="sip:${c.telefone}" class="microsip-btn">📞 Call</a>` : ''}
+                    ${c.operador_nome ? `<span class="op-tag">👤 ${c.operador_nome}</span>` : ''}
+                    ${c.telefone ? `<br><a href="sip:${c.telefone}" class="microsip-btn">📞 Call</a>` : ''}
                   </div>
                 `).join('')}
               </div>
@@ -472,7 +532,16 @@
       e.preventDefault();
       e.currentTarget.classList.remove('drag-over');
       const id = e.dataTransfer.getData('text/plain');
-      const res = await api('/api/cob/pipeline/mover', 'PUT', { id, novoEstagio });
+      let valorAcordo = undefined;
+
+      if (novoEstagio === 'Acordo Realizado') {
+        const valInput = prompt('Informe o VALOR DO ACORDO negociado (R$):');
+        if (valInput !== null && valInput.trim() !== '') {
+          valorAcordo = parseFloat(valInput.replace(',', '.'));
+        }
+      }
+
+      const res = await api('/api/cob/pipeline/mover', 'PUT', { id, novoEstagio, valorAcordo });
       if (res.error) return alert(res.error);
       const clientes = await api('/api/cob/clientes');
       window.allCobClientes = clientes;
@@ -495,7 +564,7 @@
       const clientes = await api('/api/cob/clientes');
       const main = document.getElementById('main-content');
       main.innerHTML = `
-        <div style="max-width:500px; background:var(--panel-bg); padding:20px; border-radius:8px; border:1px solid var(--border-color); margin-bottom:20px;">
+        <div style="max-width:500px; background:var(--panel-bg); padding:24px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:20px;">
           <h3 id="form-cob-title">Novo Cliente Devedor</h3>
           <input id="c_contrato" placeholder="Contrato / ID">
           <input id="c_nome" placeholder="Nome do Cliente">
@@ -513,12 +582,13 @@
         <h3>Listagem de Clientes em Atraso</h3>
         <input type="text" id="cob-list-search" placeholder="🔍 Filtrar lista..." onkeyup="filtrarTabela('tbl-cob', this.value)" style="max-width:300px; margin-bottom:10px;">
         <table id="tbl-cob">
-          <thead><tr><th>Contrato</th><th>Nome</th><th>Telefone</th><th>Valor Devedor</th><th>Faixa</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Contrato</th><th>Nome</th><th>Telefone</th><th>Valor Devedor</th><th>Faixa</th><th>Operador</th><th>Ações</th></tr></thead>
           <tbody>
             ${clientes.map(c => `
               <tr>
                 <td>${c.contrato}</td><td>${c.nome}</td><td>${c.telefone||'-'}</td>
                 <td>R$ ${parseFloat(c.valor_devedor).toFixed(2)}</td><td>${c.faixa_atraso}</td>
+                <td>${c.operador_nome||'-'}</td>
                 <td>
                   <button onclick='editarClienteCob(${JSON.stringify(c)})' class="btn-sm">Editar</button>
                   <button onclick="excluirClienteCob(${c.id})" class="btn-sm btn-danger">Excluir</button>
@@ -574,7 +644,7 @@
       const clientes = await api('/api/pos/clientes');
       const main = document.getElementById('main-content');
       main.innerHTML = `
-        <div style="max-width:500px; background:var(--panel-bg); padding:20px; border-radius:8px; border:1px solid var(--border-color); margin-bottom:20px;">
+        <div style="max-width:500px; background:var(--panel-bg); padding:24px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:20px;">
           <h3 id="form-pos-title">Novo Cliente Pós-Venda</h3>
           <input id="pos_nome" placeholder="Nome do Cliente">
           <input id="pos_fone" placeholder="Telefone">
@@ -585,12 +655,13 @@
         <h3>Base de Clientes Pós-Vendas</h3>
         <input type="text" placeholder="🔍 Filtrar lista..." onkeyup="filtrarTabela('tbl-pos', this.value)" style="max-width:300px; margin-bottom:10px;">
         <table id="tbl-pos">
-          <thead><tr><th>Nome</th><th>Telefone</th><th>Mensalidade</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Nome</th><th>Telefone</th><th>Mensalidade</th><th>Operador</th><th>Ações</th></tr></thead>
           <tbody>
             ${clientes.map(c => `
               <tr>
                 <td>${c.nome}</td><td>${c.telefone||'-'}</td>
                 <td>R$ ${parseFloat(c.valor_mensal).toFixed(2)}</td>
+                <td>${c.operador_nome||'-'}</td>
                 <td>
                   <button onclick='editarClientePos(${JSON.stringify(c)})' class="btn-sm">Editar</button>
                   <button onclick="excluirClientePos(${c.id})" class="btn-sm btn-danger">Excluir</button>
