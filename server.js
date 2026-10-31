@@ -78,18 +78,11 @@ async function initDB() {
         telefone VARCHAR(20) NOT NULL
       );
 
-      CREATE TABLE IF NOT EXISTS acordos_pagos (
+      CREATE TABLE IF NOT EXISTS scripts (
         id SERIAL PRIMARY KEY,
-        operador_id INT REFERENCES usuarios(id),
-        valor NUMERIC(10,2) NOT NULL,
-        data_pagamento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS vendas_realizadas (
-        id SERIAL PRIMARY KEY,
-        operador_id INT REFERENCES usuarios(id),
-        valor NUMERIC(10,2) NOT NULL,
-        data_venda TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('COBRANCA', 'VENDAS')),
+        titulo VARCHAR(100) NOT NULL,
+        conteudo TEXT NOT NULL
       );
     `);
 
@@ -100,10 +93,20 @@ async function initDB() {
         "INSERT INTO usuarios (nome, login, senha, cargo) VALUES ('Admin Nexus', 'admin', $1, 'ADMIN')",
         [hash]
       );
-      console.log('✅ Usuário Admin padrão criado: admin / admin123');
+    }
+
+    // Scripts Padrão Iniciais
+    const scrRes = await pool.query("SELECT COUNT(*) FROM scripts");
+    if (parseInt(scrRes.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO scripts (tipo, titulo, conteudo) VALUES
+        ('COBRANCA', 'Abordagem Inicial (30 Dias)', 'Olá [NOME], boa tarde! Identificamos uma pendência em aberto no valor de R$ [VALOR]. Podemos gerar o chave Pix para quitação hoje?'),
+        ('COBRANCA', 'Notificação Urgente (60-90 Dias)', 'Prezado(a) [NOME], consta em nosso sistema notificação para cancelamento definitivo. Podemos negociar com desconto especial no valor de R$ [VALOR]?'),
+        ('VENDAS', 'Oferta de Up-Grade de Banda', 'Olá [NOME]! Notamos seu excelente uso da nossa fibra. Temos uma oferta para dobrar sua velocidade de internet por apenas R$ 15 a mais no mês.')
+      `);
     }
   } catch (err) {
-    console.error('❌ Erro na inicialização do DB:', err);
+    console.error('❌ Erro no DB:', err);
   }
 }
 initDB();
@@ -112,24 +115,21 @@ function authMiddleware(req, res, next) {
   const token = req.headers['authorization'];
   if (!token) return res.status(401).json({ error: 'Acesso Negado' });
   try {
-    const verified = jwt.verify(token.replace('Bearer ', ''), JWT_SECRET);
-    req.user = verified;
+    req.user = jwt.verify(token.replace('Bearer ', ''), JWT_SECRET);
     next();
   } catch (err) {
     res.status(400).json({ error: 'Token Inválido' });
   }
 }
 
+// AUTH
 app.post('/api/auth/login', async (req, res) => {
   const { login, senha } = req.body;
   try {
     const result = await pool.query('SELECT * FROM usuarios WHERE login = $1', [login]);
     if (result.rows.length === 0) return res.status(400).json({ error: 'Usuário não encontrado' });
-
     const user = result.rows[0];
-    const validPass = await bcrypt.compare(senha, user.senha);
-    if (!validPass) return res.status(400).json({ error: 'Senha incorreta' });
-
+    if (!await bcrypt.compare(senha, user.senha)) return res.status(400).json({ error: 'Senha incorreta' });
     const token = jwt.sign({ id: user.id, cargo: user.cargo, nome: user.nome }, JWT_SECRET);
     res.json({ token, user: { id: user.id, nome: user.nome, login: user.login, cargo: user.cargo } });
   } catch (err) {
@@ -137,43 +137,62 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// DASHBOARD - CORRIGIDO
 app.get('/api/dashboard', authMiddleware, async (req, res) => {
   try {
     const carteira = await pool.query('SELECT COUNT(*), COALESCE(SUM(valor_devedor), 0) as total FROM cob_clientes');
+    const acordosPagos = await pool.query("SELECT COUNT(*), COALESCE(SUM(valor_devedor), 0) as total FROM cob_clientes WHERE estagio = 'Acordo Pago (Gestão)'");
     const vendasAtivas = await pool.query('SELECT COUNT(*) FROM pos_vendas_ativas');
     const upgrades = await pool.query('SELECT COUNT(*) FROM pos_upgrades');
-
-    const rankingAcordos = await pool.query(`
-      SELECT u.nome, COALESCE(SUM(a.valor), 0) as total 
-      FROM usuarios u 
-      LEFT JOIN acordos_pagos a ON u.id = a.operador_id 
-      GROUP BY u.id ORDER BY total DESC
-    `);
-
-    const rankingVendas = await pool.query(`
-      SELECT u.nome, COUNT(v.id) as qtd, COALESCE(SUM(v.valor), 0) as total 
-      FROM usuarios u 
-      LEFT JOIN vendas_realizadas v ON u.id = v.operador_id 
-      GROUP BY u.id ORDER BY total DESC
-    `);
 
     res.json({
       indicadores: {
         totalCarteira: carteira.rows[0],
+        totalAcordosPagos: acordosPagos.rows[0],
         totalVendasAtivas: vendasAtivas.rows[0].count,
         totalUpgrades: upgrades.rows[0].count
-      },
-      rankingAcordos: rankingAcordos.rows,
-      rankingVendas: rankingVendas.rows
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get('/api/cob/pipeline', authMiddleware, async (req, res) => {
+// COBRANÇA - CLIENTES
+app.get('/api/cob/clientes', authMiddleware, async (req, res) => {
   const result = await pool.query('SELECT * FROM cob_clientes ORDER BY id DESC');
   res.json(result.rows);
+});
+
+app.post('/api/cob/clientes', authMiddleware, async (req, res) => {
+  const { contrato, nome, telefone, valor_devedor, faixa_atraso } = req.body;
+  try {
+    await pool.query(
+      'INSERT INTO cob_clientes (contrato, nome, telefone, valor_devedor, faixa_atraso) VALUES ($1, $2, $3, $4, $5)',
+      [contrato, nome, telefone || '', valor_devedor || 0, faixa_atraso || '30 dias']
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/cob/clientes/:id', authMiddleware, async (req, res) => {
+  const { contrato, nome, telefone, valor_devedor, faixa_atraso } = req.body;
+  try {
+    await pool.query(
+      'UPDATE cob_clientes SET contrato=$1, nome=$2, telefone=$3, valor_devedor=$4, faixa_atraso=$5 WHERE id=$6',
+      [contrato, nome, telefone, valor_devedor, faixa_atraso, req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/cob/clientes/:id', authMiddleware, async (req, res) => {
+  await pool.query('DELETE FROM cob_clientes WHERE id = $1', [req.params.id]);
+  res.json({ success: true });
 });
 
 app.put('/api/cob/pipeline/mover', authMiddleware, async (req, res) => {
@@ -185,47 +204,26 @@ app.put('/api/cob/pipeline/mover', authMiddleware, async (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/cob/cadastro', authMiddleware, async (req, res) => {
-  const { contrato, nome, telefone, valor_devedor, faixa_atraso } = req.body;
-  try {
-    await pool.query(
-      'INSERT INTO cob_clientes (contrato, nome, telefone, valor_devedor, faixa_atraso) VALUES ($1, $2, $3, $4, $5)',
-      [contrato, nome, telefone, valor_devedor, faixa_atraso]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
-  }
-});
-
-app.get('/api/cob/agenda', authMiddleware, async (req, res) => {
-  const result = await pool.query(`
-    SELECT a.*, c.nome as cliente_nome, c.telefone 
-    FROM cob_agenda a 
-    JOIN cob_clientes c ON a.cliente_id = c.id 
-    ORDER BY a.data_agendamento ASC
-  `);
-  res.json(result.rows);
-});
-
-app.put('/api/cob/agenda/:id/concluir', authMiddleware, async (req, res) => {
-  await pool.query('UPDATE cob_agenda SET concluido = true WHERE id = $1', [req.params.id]);
-  res.json({ success: true });
-});
-
-app.delete('/api/cob/agenda/:id', authMiddleware, async (req, res) => {
-  await pool.query('DELETE FROM cob_agenda WHERE id = $1', [req.params.id]);
-  res.json({ success: true });
-});
-
-app.get('/api/pos/pipeline', authMiddleware, async (req, res) => {
+// PÓS VENDAS - CLIENTES E PLANOS
+app.get('/api/pos/clientes', authMiddleware, async (req, res) => {
   const result = await pool.query('SELECT * FROM pos_clientes ORDER BY id DESC');
   res.json(result.rows);
 });
 
-app.put('/api/pos/pipeline/nps', authMiddleware, async (req, res) => {
-  const { id, nps } = req.body;
-  await pool.query('UPDATE pos_clientes SET satisfacao_nps = $1 WHERE id = $2', [nps, id]);
+app.post('/api/pos/clientes', authMiddleware, async (req, res) => {
+  const { nome, telefone, valor_mensal } = req.body;
+  await pool.query('INSERT INTO pos_clientes (nome, telefone, valor_mensal) VALUES ($1, $2, $3)', [nome, telefone, valor_mensal]);
+  res.json({ success: true });
+});
+
+app.put('/api/pos/clientes/:id', authMiddleware, async (req, res) => {
+  const { nome, telefone, valor_mensal } = req.body;
+  await pool.query('UPDATE pos_clientes SET nome=$1, telefone=$2, valor_mensal=$3 WHERE id=$4', [nome, telefone, valor_mensal, req.params.id]);
+  res.json({ success: true });
+});
+
+app.delete('/api/pos/clientes/:id', authMiddleware, async (req, res) => {
+  await pool.query('DELETE FROM pos_clientes WHERE id = $1', [req.params.id]);
   res.json({ success: true });
 });
 
@@ -240,16 +238,39 @@ app.post('/api/pos/planos', authMiddleware, async (req, res) => {
   res.json({ success: true });
 });
 
+app.delete('/api/pos/planos/:id', authMiddleware, async (req, res) => {
+  await pool.query('DELETE FROM pos_planos WHERE id = $1', [req.params.id]);
+  res.json({ success: true });
+});
+
 app.get('/api/pos/upgrades', authMiddleware, async (req, res) => {
-  const result = await pool.query('SELECT * FROM pos_upgrades');
+  const result = await pool.query('SELECT * FROM pos_upgrades ORDER BY id DESC');
   res.json(result.rows);
 });
 
 app.get('/api/pos/vendas-ativas', authMiddleware, async (req, res) => {
-  const result = await pool.query('SELECT * FROM pos_vendas_ativas');
+  const result = await pool.query('SELECT * FROM pos_vendas_ativas ORDER BY id DESC');
   res.json(result.rows);
 });
 
+// SCRIPTS MANUAL
+app.get('/api/scripts/:tipo', authMiddleware, async (req, res) => {
+  const result = await pool.query('SELECT * FROM scripts WHERE tipo = $1 ORDER BY id DESC', [req.params.tipo]);
+  res.json(result.rows);
+});
+
+app.post('/api/scripts', authMiddleware, async (req, res) => {
+  const { tipo, titulo, conteudo } = req.body;
+  await pool.query('INSERT INTO scripts (tipo, titulo, conteudo) VALUES ($1, $2, $3)', [tipo, titulo, conteudo]);
+  res.json({ success: true });
+});
+
+app.delete('/api/scripts/:id', authMiddleware, async (req, res) => {
+  await pool.query('DELETE FROM scripts WHERE id = $1', [req.params.id]);
+  res.json({ success: true });
+});
+
+// ADMIN & IMPORTADOR (3 Colunas: ID;Nome;Valor)
 app.get('/api/admin/usuarios', authMiddleware, async (req, res) => {
   if (req.user.cargo !== 'ADMIN') return res.status(403).json({ error: 'Acesso Negado' });
   const result = await pool.query('SELECT id, nome, login, cargo FROM usuarios ORDER BY id DESC');
@@ -281,26 +302,27 @@ app.post('/api/admin/importar', authMiddleware, upload.single('arquivo'), async 
   const linhas = buffer.split('\n').filter(l => l.trim() !== '');
 
   try {
-    for (let i = 1; i < linhas.length; i++) {
+    for (let i = 0; i < linhas.length; i++) {
       const colunas = linhas[i].split(';').map(c => c.trim().replace(/"/g, ''));
       if (colunas.length < 2) continue;
 
       if (tipo === 'cobranca') {
         const [contrato, nome, valor, telefone] = colunas;
+        const valNum = parseFloat((valor || '0').replace(',', '.'));
         await pool.query(
           `INSERT INTO cob_clientes (contrato, nome, valor_devedor, faixa_atraso, telefone) 
-           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (contrato) DO NOTHING`,
-          [contrato, nome, parseFloat(valor || 0), faixa || '30 dias', telefone || '']
+           VALUES ($1, $2, $3, $4, $5) ON CONFLICT (contrato) DO UPDATE SET valor_devedor = EXCLUDED.valor_devedor`,
+          [contrato, nome, valNum, faixa || '30 dias', telefone || '']
         );
       } else if (tipo === 'upgrade') {
         const [cliente_id, nome, plano_atual] = colunas;
-        await pool.query('INSERT INTO pos_upgrades (cliente_id, nome, plano_atual) VALUES ($1, $2, $3)', [cliente_id, nome, plano_atual]);
+        await pool.query('INSERT INTO pos_upgrades (cliente_id, nome, plano_atual) VALUES ($1, $2, $3)', [cliente_id, nome, plano_atual || 'Padrão']);
       } else if (tipo === 'vendas_ativas') {
         const [cliente_id, nome, telefone] = colunas;
-        await pool.query('INSERT INTO pos_vendas_ativas (cliente_id, nome, telefone) VALUES ($1, $2, $3)', [cliente_id, nome, telefone]);
+        await pool.query('INSERT INTO pos_vendas_ativas (cliente_id, nome, telefone) VALUES ($1, $2, $3)', [cliente_id, nome, telefone || '']);
       }
     }
-    res.json({ success: true, count: linhas.length - 1 });
+    res.json({ success: true, count: linhas.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -318,4 +340,4 @@ app.post('/api/admin/limpar-acervo', authMiddleware, async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 NEXUS COBR rodando na porta ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 NEXUS COBR (Enterprise V2) rodando na porta ${PORT}`));
