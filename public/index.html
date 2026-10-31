@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEXUS COBR - Metronet Enterprise</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --panel-bg: #111827;
+      --card-bg: #1f2937;
+      --accent-indigo: #6366f1;
+      --accent-cyan: #06b6d4;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --border-color: #374151;
+      --neon-glow: 0 0 10px rgba(6, 182, 212, 0.4);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+    body { background-color: var(--bg-dark); color: var(--text-main); display: flex; height: 100vh; overflow: hidden; }
+    #login-screen { position: fixed; inset: 0; background: var(--bg-dark); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .login-card { background: var(--panel-bg); border: 1px solid var(--accent-cyan); padding: 40px; border-radius: 12px; width: 360px; box-shadow: var(--neon-glow); text-align: center; }
+    .login-card h2 { color: var(--accent-cyan); margin-bottom: 20px; font-family: 'JetBrains Mono', monospace; }
+    input, select, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 6px; border: 1px solid var(--border-color); background: #1a2234; color: #fff; outline: none; }
+    input:focus { border-color: var(--accent-cyan); box-shadow: var(--neon-glow); }
+    button { background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan)); border: none; font-weight: bold; cursor: pointer; transition: 0.3s; }
+    button:hover { opacity: 0.9; transform: translateY(-1px); }
+    #app { display: none; width: 100%; height: 100%; flex-direction: row; }
+    aside { width: 260px; background: var(--panel-bg); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
+    .brand { padding: 20px; font-size: 1.2rem; font-weight: bold; color: var(--accent-cyan); border-bottom: 1px solid var(--border-color); font-family: 'JetBrains Mono', monospace; }
+    nav { flex: 1; padding: 10px; overflow-y: auto; }
+    .menu-section { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); margin: 15px 10px 5px; }
+    .nav-item { padding: 10px; border-radius: 6px; cursor: pointer; color: var(--text-muted); display: block; margin-bottom: 4px; text-decoration: none; }
+    .nav-item:hover, .nav-item.active { background: var(--card-bg); color: var(--accent-cyan); border-left: 3px solid var(--accent-cyan); }
+    main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    header { height: 60px; background: var(--panel-bg); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
+    .content { flex: 1; padding: 20px; overflow-y: auto; }
+    .kanban-board { display: flex; gap: 15px; overflow-x: auto; height: 100%; padding-bottom: 10px; }
+    .kanban-col { min-width: 280px; max-width: 280px; background: var(--panel-bg); border-radius: 8px; border: 1px solid var(--border-color); display: flex; flex-direction: column; }
+    .kanban-col h4 { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; color: var(--accent-cyan); }
+    .kanban-cards { padding: 10px; flex: 1; overflow-y: auto; }
+    .kanban-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+    .kanban-card h5 { color: #fff; margin-bottom: 5px; }
+    .kanban-card p { font-size: 0.8rem; color: var(--text-muted); }
+    .microsip-btn { display: inline-block; background: var(--accent-indigo); color: #fff; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.75rem; margin-top: 8px; }
+    .grid-dash { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 20px; }
+    .dash-card { background: var(--panel-bg); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); }
+    .dash-card h3 { font-size: 0.85rem; color: var(--text-muted); }
+    .dash-card .val { font-size: 1.8rem; font-weight: bold; color: var(--accent-cyan); margin-top: 5px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; background: var(--panel-bg); border-radius: 8px; overflow: hidden; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; }
+    th { background: #1a2234; color: var(--accent-cyan); }
+    .star-rating { color: #f59e0b; cursor: pointer; font-size: 1.1rem; }
+    .strike { text-decoration: line-through; opacity: 0.5; }
+  </style>
+</head>
+<body>
+  <div id="login-screen">
+    <div class="login-card">
+      <h2>NEXUS COBR</h2>
+      <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px;">Metronet Enterprise</p>
+      <input type="text" id="login-user" placeholder="Usuário">
+      <input type="password" id="login-pass" placeholder="Senha">
+      <button onclick="login()">ENTRAR</button>
+      <p id="login-err" style="color: #ef4444; font-size: 0.8rem; margin-top: 10px;"></p>
+    </div>
+  </div>
+
+  <div id="app">
+    <aside>
+      <div class="brand">⚡ NEXUS COBR</div>
+      <nav>
+        <div class="menu-section">Geral</div>
+        <a class="nav-item active" onclick="navigate('dash')">📊 Dashboard / Ranking</a>
+        <div class="menu-section">Cobrança</div>
+        <a class="nav-item" onclick="navigate('cob_pipeline')">📌 Pipeline Cobrança</a>
+        <a class="nav-item" onclick="navigate('cob_cadastro')">➕ Cadastro Cliente</a>
+        <a class="nav-item" onclick="navigate('cob_agenda')">📅 Sua Agenda</a>
+        <a class="nav-item" onclick="navigate('cob_scripts')">📄 Script Cobrança</a>
+        <div class="menu-section">Pós-Vendas B2C</div>
+        <a class="nav-item" onclick="navigate('pos_pipeline')">📌 Pipeline Pós-Vendas</a>
+        <a class="nav-item" onclick="navigate('pos_planos')">📦 Cadastro de Planos</a>
+        <a class="nav-item" onclick="navigate('pos_upgrade')">🚀 Opção Up-Grade</a>
+        <a class="nav-item" onclick="navigate('pos_vendas')">📞 Vendas Ativas</a>
+        <a class="nav-item" onclick="navigate('pos_scripts')">📄 Script Vendas</a>
+        <div class="menu-section">Administração</div>
+        <a class="nav-item" id="menu-admin-user" onclick="navigate('admin_usuarios')">👤 Usuários</a>
+        <a class="nav-item" id="menu-admin-import" onclick="navigate('admin_listas')">📥 Importador / Listas</a>
+      </nav>
+    </aside>
+
+    <main>
+      <header>
+        <div id="header-title" style="font-weight: bold; color: var(--accent-cyan);">Dashboard</div>
+        <div style="font-size: 0.85rem; display: flex; align-items: center; gap: 15px;">
+          <span id="user-display"></span>
+          <button onclick="logout()" style="padding: 4px 10px; width: auto; font-size: 0.75rem;">Sair</button>
+        </div>
+      </header>
+      <div class="content" id="main-content"></div>
+    </main>
+  </div>
+
+  <script>
+    let token = localStorage.getItem('nexus_token');
+    let user = JSON.parse(localStorage.getItem('nexus_user') || '{}');
+    if (token) showApp();
+
+    async function login() {
+      const u = document.getElementById('login-user').value;
+      const p = document.getElementById('login-pass').value;
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ login: u, senha: p })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        token = data.token;
+        user = data.user;
+        localStorage.setItem('nexus_token', token);
+        localStorage.setItem('nexus_user', JSON.stringify(user));
+        showApp();
+      } else {
+        document.getElementById('login-err').innerText = data.error;
+      }
+    }
+
+    function logout() {
+      localStorage.clear();
+      location.reload();
+    }
+
+    function showApp() {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'flex';
+      document.getElementById('user-display').innerText = `${user.nome} (${user.cargo})`;
+      if (user.cargo === 'COBRADOR') {
+        document.getElementById('menu-admin-user').style.display = 'none';
+        document.getElementById('menu-admin-import').style.display = 'none';
+      }
+      navigate('dash');
+    }
+
+    async function api(url, method = 'GET', body = null) {
+      const headers = { 'Authorization': `Bearer ${token}` };
+      if (body && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
+      const opts = { method, headers };
+      if (body) opts.body = body instanceof FormData ? body : JSON.stringify(body);
+      const res = await fetch(url, opts);
+      return res.json();
+    }
+
+    async function navigate(screen) {
+      const main = document.getElementById('main-content');
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      
+      if (screen === 'dash') {
+        document.getElementById('header-title').innerText = 'Dashboard / Ranking';
+        const data = await api('/api/dashboard');
+        main.innerHTML = `
+          <div class="grid-dash">
+            <div class="dash-card"><h3>TOTAL CARTEIRA DEVEDORA</h3><div class="val">R$ ${data.indicadores.totalCarteira.total}</div></div>
+            <div class="dash-card"><h3>CONTATOS VENDAS ATIVAS</h3><div class="val">${data.indicadores.totalVendasAtivas}</div></div>
+            <div class="dash-card"><h3>OPORTUNIDADES UP-GRADE</h3><div class="val">${data.indicadores.totalUpgrades}</div></div>
+          </div>
+          <h3 style="margin-top:20px;">🏆 Ranking Acordos Pagos</h3>
+          <table><thead><tr><th>Operador</th><th>Total Acumulado</th></tr></thead><tbody>
+            ${data.rankingAcordos.map(r => `<tr><td>${r.nome}</td><td>R$ ${r.total}</td></tr>`).join('')}
+          </tbody></table>
+        `;
+      } else if (screen === 'cob_pipeline') {
+        document.getElementById('header-title').innerText = 'Pipeline de Cobrança';
+        const clientes = await api('/api/cob/pipeline');
+        const estagios = ['Novos Contatos', '1ª Tentativa', '2ª Tentativa', '3ª Tentativa', 'Em Contato', 'Acordo Realizado', 'Acordo Pago (Gestão)'];
+        main.innerHTML = `<div class="kanban-board">
+          ${estagios.map(est => `
+            <div class="kanban-col">
+              <h4>${est}</h4>
+              <div class="kanban-cards">
+                ${clientes.filter(c => c.estagio === est).map(c => `
+                  <div class="kanban-card">
+                    <h5>${c.nome}</h5>
+                    <p>Contrato: ${c.contrato}</p>
+                    <p>Atraso: ${c.faixa_atraso} | Débito: R$ ${c.valor_devedor}</p>
+                    <a href="sip:${c.telefone}" class="microsip-btn">📞 MicroSIP (${c.telefone})</a>
+                    <select onchange="moverCob(${c.id}, this.value)" style="font-size:0.75rem; padding:4px; margin-top:8px;">
+                      <option value="">Mover para...</option>
+                      ${estagios.map(e => `<option value="${e}">${e}</option>`).join('')}
+                    </select>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>`;
+      } else if (screen === 'cob_cadastro') {
+        document.getElementById('header-title').innerText = 'Cadastro de Inadimplente';
+        main.innerHTML = `
+          <div style="max-width:400px; background:var(--panel-bg); padding:20px; border-radius:8px;">
+            <h3>Novo Cliente em Atraso</h3>
+            <input id="c_contrato" placeholder="Contrato / ID">
+            <input id="c_nome" placeholder="Nome do Cliente">
+            <input id="c_fone" placeholder="Telefone">
+            <input id="c_valor" type="number" placeholder="Valor Devedor (R$)">
+            <select id="c_faixa">
+              <option value="30 dias">30 dias</option>
+              <option value="60 dias">60 dias</option>
+              <option value="90 dias">90 dias</option>
+              <option value="Cancelados">Cancelados</option>
+            </select>
+            <button onclick="cadastrarClienteCob()" style="margin-top:15px;">Salvar Registro</button>
+          </div>
+        `;
+      } else if (screen === 'cob_agenda') {
+        document.getElementById('header-title').innerText = 'Sua Agenda de Retornos';
+        const agenda = await api('/api/cob/agenda');
+        main.innerHTML = `
+          <table><thead><tr><th>Cliente</th><th>Contato</th><th>Compromisso</th><th>Data</th><th>Ações</th></tr></thead><tbody>
+            ${agenda.map(a => `
+              <tr class="${a.concluido ? 'strike' : ''}">
+                <td>${a.cliente_nome}</td>
+                <td><a href="sip:${a.telefone}" class="microsip-btn">📞 Call</a></td>
+                <td>${a.titulo}</td>
+                <td>${new Date(a.data_agendamento).toLocaleString()}</td>
+                <td>
+                  ${!a.concluido ? `<button onclick="concluirAgenda(${a.id})" style="width:auto; padding:4px 8px;">Concluir</button>` : '✅ OK'}
+                  <button onclick="excluirAgenda(${a.id})" style="width:auto; padding:4px 8px; background:#ef4444;">Excluir</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody></table>
+        `;
+      } else if (screen === 'cob_scripts') {
+        document.getElementById('header-title').innerText = 'Scripts de Abordagem';
+        main.innerHTML = `
+          <div style="background:var(--panel-bg); padding:20px; border-radius:8px; margin-bottom:15px;">
+            <h4 style="color:var(--accent-cyan);">Abordagem Inicial (Atraso Curto - 30 Dias)</h4>
+            <p style="margin-top:10px; color:var(--text-muted);">"Olá [NOME], boa tarde! Aqui é do setor financeiro da Metronet. Identificamos uma pendência em aberto no valor de R$ [VALOR]. Podemos gerar o código Pix para regularização agora?"</p>
+          </div>
+          <div style="background:var(--panel-bg); padding:20px; border-radius:8px;">
+            <h4 style="color:var(--accent-cyan);">Abordagem Notificação Urgente (60-90+ Dias)</h4>
+            <p style="margin-top:10px; color:var(--text-muted);">"Prezado(a) [NOME], consta em nosso sistema uma notificação para cancelamento definitivo do seu sinal. Para evitar restrições, estamos com uma condição especial de desconto no valor de R$ [VALOR]."</p>
+          </div>
+        `;
+      } else if (screen === 'pos_pipeline') {
+        document.getElementById('header-title').innerText = 'Pipeline Pós-Vendas';
+        const clientes = await api('/api/pos/pipeline');
+        const estagios = ['Venda Instalada', 'Acompanhamento 15 Dias', 'Acompanhamento 30 Dias', 'Satisfação do Cliente'];
+        main.innerHTML = `<div class="kanban-board">
+          ${estagios.map(est => `
+            <div class="kanban-col">
+              <h4>${est}</h4>
+              <div class="kanban-cards">
+                ${clientes.filter(c => c.estagio === est).map(c => `
+                  <div class="kanban-card">
+                    <h5>${c.nome}</h5>
+                    <p>Mensalidade: R$ ${c.valor_mensal}</p>
+                    ${est === 'Satisfação do Cliente' ? `
+                      <div class="star-rating" style="margin-top:8px;">
+                        ${[1,2,3,4,5].map(star => `<span onclick="setNps(${c.id}, ${star})">${star <= (c.satisfacao_nps||0) ? '⭐' : '☆'}</span>`).join('')}
+                      </div>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `).join('')}
+        </div>`;
+      } else if (screen === 'admin_usuarios') {
+        document.getElementById('header-title').innerText = 'Gestão de Usuários';
+        const users = await api('/api/admin/usuarios');
+        main.innerHTML = `
+          <div style="max-width:400px; background:var(--panel-bg); padding:20px; border-radius:8px; margin-bottom:20px;">
+            <h3>Criar Novo Usuário</h3>
+            <input id="u_nome" placeholder="Nome Completo">
+            <input id="u_login" placeholder="Login de Acesso">
+            <input id="u_senha" type="password" placeholder="Senha">
+            <select id="u_cargo">
+              <option value="COBRADOR">COBRADOR</option>
+              <option value="SUPERVISOR">SUPERVISOR</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+            <button onclick="cadastrarUsuario()" style="margin-top:15px;">Criar Acesso</button>
+          </div>
+          <table><thead><tr><th>Nome</th><th>Login</th><th>Cargo</th><th>Ações</th></tr></thead><tbody>
+            ${users.map(u => `
+              <tr>
+                <td>${u.nome}</td><td>${u.login}</td><td>${u.cargo}</td>
+                <td><button onclick="excluirUsuario(${u.id})" style="width:auto; padding:4px 8px; background:#ef4444;">Excluir</button></td>
+              </tr>
+            `).join('')}
+          </tbody></table>
+        `;
+      } else if (screen === 'admin_listas') {
+        document.getElementById('header-title').innerText = 'Importador / Acervo de Listas';
+        main.innerHTML = `
+          <div style="max-width:500px; background:var(--panel-bg); padding:20px; border-radius:8px; margin-bottom:20px;">
+            <h3>Importação Massiva (CSV / TXT)</h3>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-top:5px;">Formato aceito: separado por ponto e vírgula (;)</p>
+            <select id="imp_tipo" style="margin-top:15px;">
+              <option value="cobranca">Lista de Cobrança (ID;Nome;Valor;Telefone)</option>
+              <option value="upgrade">Lista Up-Grade (ID;Nome;PlanoAtual)</option>
+              <option value="vendas_ativas">Lista Vendas Ativas (ID;Nome;Telefone)</option>
+            </select>
+            <select id="imp_faixa" style="margin-top:10px;">
+              <option value="30 dias">Faixa 30 dias</option>
+              <option value="60 dias">Faixa 60 dias</option>
+              <option value="90 dias">Faixa 90 dias</option>
+              <option value="Cancelados">Faixa Cancelados</option>
+            </select>
+            <input type="file" id="imp_file" accept=".csv, .txt" style="margin-top:15px;">
+            <button onclick="enviarArquivoImportacao()" style="margin-top:15px;">Processar e Enviar</button>
+          </div>
+          <div style="background:var(--panel-bg); padding:20px; border-radius:8px;">
+            <h3 style="color:#ef4444;">Gestão e Limpeza de Acervo</h3>
+            <div style="display:flex; gap:10px; margin-top:15px;">
+              <button onclick="limparTabela('cob_clientes')" style="background:#ef4444;">Esvaziar Cobrança</button>
+              <button onclick="limparTabela('pos_upgrades')" style="background:#ef4444;">Esvaziar Upgrades</button>
+              <button onclick="limparTabela('pos_vendas_ativas')" style="background:#ef4444;">Esvaziar Vendas Ativas</button>
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    async function moverCob(id, novoEstagio) {
+      if (!novoEstagio) return;
+      const res = await api('/api/cob/pipeline/mover', 'PUT', { id, novoEstagio });
+      if (res.error) alert(res.error);
+      navigate('cob_pipeline');
+    }
+
+    async function setNps(id, nps) {
+      await api('/api/pos/pipeline/nps', 'PUT', { id, nps });
+      navigate('pos_pipeline');
+    }
+
+    async function cadastrarClienteCob() {
+      const body = {
+        contrato: document.getElementById('c_contrato').value,
+        nome: document.getElementById('c_nome').value,
+        telefone: document.getElementById('c_fone').value,
+        valor_devedor: document.getElementById('c_valor').value,
+        faixa_atraso: document.getElementById('c_faixa').value
+      };
+      await api('/api/cob/cadastro', 'POST', body);
+      alert('Cliente Cadastrado!');
+      navigate('cob_pipeline');
+    }
+
+    async function cadastrarUsuario() {
+      const body = {
+        nome: document.getElementById('u_nome').value,
+        login: document.getElementById('u_login').value,
+        senha: document.getElementById('u_senha').value,
+        cargo: document.getElementById('u_cargo').value
+      };
+      await api('/api/admin/usuarios', 'POST', body);
+      navigate('admin_usuarios');
+    }
+
+    async function excluirUsuario(id) {
+      if(confirm('Excluir este usuário?')) {
+        await api(`/api/admin/usuarios/${id}`, 'DELETE');
+        navigate('admin_usuarios');
+      }
+    }
+
+    async function enviarArquivoImportacao() {
+      const fileInput = document.getElementById('imp_file');
+      if (!fileInput.files[0]) return alert('Selecione um arquivo!');
+      const formData = new FormData();
+      formData.append('arquivo', fileInput.files[0]);
+      formData.append('tipo', document.getElementById('imp_tipo').value);
+      formData.append('faixa', document.getElementById('imp_faixa').value);
+      
+      const res = await api('/api/admin/importar', 'POST', formData);
+      if (res.success) {
+        alert(`Sucesso! ${res.count} registros importados.`);
+      } else {
+        alert('Erro na importação: ' + res.error);
+      }
+    }
+
+    async function limparTabela(tabela) {
+      if (confirm('Tem certeza? Todos os registros desta lista serão deletados!')) {
+        await api('/api/admin/limpar-acervo', 'POST', { tabela });
+        alert('Tabela esvaziada.');
+      }
+    }
+  </script>
+</body>
+</html>
